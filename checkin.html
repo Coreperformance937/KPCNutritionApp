@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>KPC Weekly Check-in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: one narrow column for a phone. Black brand bar, white cards, orange for the one action. */
+  --ink:#0e0e0e; --paper:#ffffff; --wash:#f5f3f1; --line:#e3ded9; --muted:#6b645e;
+  --accent:#f26a1b; --accent-wash:#fdeee4; --crit:#b3261e; --good:#1e7a46;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--wash);color:var(--ink);font:400 16px/1.45 var(--body)}
+h1,h2{font-family:var(--display);text-transform:uppercase;letter-spacing:.03em;margin:0;text-wrap:balance}
+h1{font-size:28px} h2{font-size:20px}
+.top{background:var(--ink);color:#fff;padding:14px 16px;border-bottom:4px solid var(--accent)}
+.top b{font:700 22px/1 var(--display);text-transform:uppercase;letter-spacing:.04em;display:block}
+.top span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+main{max-width:520px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:15px}
+label.f small{font-weight:400;color:var(--muted)}
+input,select,textarea,button{font:inherit;color:inherit}
+input[type=number],input[type=text],select,textarea{border:1px solid #bdb6af;border-radius:8px;padding:12px;background:#fff;width:100%;font-size:16px}
+textarea{min-height:84px;resize:vertical}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{border:0;background:var(--accent);color:#0e0e0e;border-radius:8px;padding:14px;font:700 19px var(--display);text-transform:uppercase;letter-spacing:.05em;cursor:pointer;width:100%}
+.btn[disabled]{opacity:.6;cursor:default}
+.slider{display:flex;gap:12px;align-items:center}
+.slider input{flex:1;height:32px;accent-color:var(--accent)}
+.slider output{font:600 22px var(--body);min-width:2ch;text-align:right}
+.ends{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:400}
+.err{border-left:4px solid var(--crit);background:#fdecea;padding:10px 12px;border-radius:0 6px 6px 0}
+.note{border-left:4px solid var(--accent);background:var(--accent-wash);padding:10px 12px;border-radius:0 6px 6px 0}
+ul{margin:0;padding-left:20px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td.n,th.n{text-align:right}
+.muted{color:var(--muted);font-size:14px}
+.pin{letter-spacing:.5em;text-align:center;font-size:26px!important;font-weight:600}
+</style>
+</head>
+<body>
+<header class="top"><b>Kelly Performance Club</b><span>Built to Perform</span></header>
+<main id="app"></main>
+<script>
+"use strict";
+const qs=new URLSearchParams(location.search),ID=qs.get('c')||'',DEP=qs.get('s')||'';
+const API=`https://script.google.com/macros/s/${encodeURIComponent(DEP)}/exec`;
+const app=document.getElementById('app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const pad=n=>String(n).padStart(2,'0');
+const iso=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const parseD=s=>{const [a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c)};
+const fmt=s=>parseD(s).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+const num=n=>Number(n).toLocaleString('en-US');
+function fridays(){const t=new Date(),x=new Date(t.getFullYear(),t.getMonth(),t.getDate()),last=new Date(x),next=new Date(x);
+  last.setDate(x.getDate()-((x.getDay()-5+7)%7));next.setDate(last.getDate()+7);
+  /* Friday to Monday you are reporting the week that just ended. Tuesday to Thursday you are early for this Friday. */
+  const early=x.getDay()>=2&&x.getDay()<=4;return{last:iso(last),next:iso(next),pick:early?iso(next):iso(last)}}
+const store={get(){try{return localStorage.getItem('kpc_pin_'+ID)||''}catch(e){return''}},set(v){try{localStorage.setItem('kpc_pin_'+ID,v)}catch(e){}},clear(){try{localStorage.removeItem('kpc_pin_'+ID)}catch(e){}}};
+async function api(payload){
+  let r;try{r=await fetch(API,{method:'POST',body:JSON.stringify(payload)})}catch(e){throw new Error('Could not connect. Check your signal and try again.')}
+  let j;try{j=await r.json()}catch(e){throw new Error('The check-in service did not answer. Try again in a minute.')}
+  if(!j.ok)throw new Error(j.error||'Something went wrong. Try again.');return j}
+let pin='',client=null;
+
+function pinScreen(err){
+  app.innerHTML=`<div class="card"><h1>Weekly check-in</h1><p class="muted">Enter the 4-digit PIN Coach Logan gave you.</p>
+  ${err?`<div class="err" role="alert">${esc(err)}</div>`:''}
+  <form id="pinForm"><label class="f" for="pin">PIN<input class="pin" id="pin" type="text" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]{4}" required></label>
+  <p></p><button class="btn" id="pinBtn" type="submit">Continue</button></form></div>`;
+  document.getElementById('pin').focus();
+  document.getElementById('pinForm').addEventListener('submit',e=>{e.preventDefault();open(document.getElementById('pin').value.trim())});
+}
+async function open(p){
+  app.innerHTML=`<div class="card"><p>Loading your check-in.</p></div>`;
+  try{const j=await api({action:'client',id:ID,pin:p});pin=p;client=j.client;store.set(p);form()}
+  catch(e){store.clear();pinScreen(e.message)}
+}
+function targetsCard(t){
+  if(!t||!t.train)return'';
+  const rows=t.method==='portions'
+   ?[['Protein (palms)','palms'],['Carbs (cupped handfuls)','cups'],['Fats (thumbs)','thumbs']].map(([l,k])=>`<tr><th>${l}</th><td class="n">${esc(t.train[k])}</td><td class="n">${esc(t.rest[k])}</td></tr>`).join('')
+   :[['Calories','kcal',''],['Protein','p',' g'],['Carbs','c',' g'],['Fat','f',' g']].map(([l,k,u])=>`<tr><th>${l}</th><td class="n">${num(t.train[k])}${u}</td><td class="n">${num(t.rest[k])}${u}</td></tr>`).join('');
+  return`<div class="card"><h2>Your daily targets</h2><table><tr><th></th><th class="n">Training day</th><th class="n">Rest day</th></tr>${rows}</table>${t.days?`<p class="muted">Training days: ${esc(t.days)}</p>`:''}</div>`;
+}
+function form(err,keep){
+  const f=fridays(),c=client,v=keep||{weekEnding:f.pick,adherence:7,sleep:7,energy:7,strength:7,weight:'',steps:'',water:'',deviations:'',notes:''};
+  const fo=(c.focus||{})[v.weekEnding]||(c.focus||{})[f.next]||(c.focus||{})[f.last],items=fo?[].concat(fo.habits||[],fo.tasks||[]):[];
+  const done=(c.done||[]).includes(v.weekEnding);
+  const sl=(k,label,lo,hi)=>`<label class="f" for="${k}">${label}<span class="slider"><input type="range" id="${k}" min="1" max="10" step="1" value="${esc(v[k])}"><output id="o-${k}">${esc(v[k])}</output></span><span class="ends"><span>1 ${lo}</span><span>10 ${hi}</span></span></label>`;
+  app.innerHTML=`<div class="card"><h1>Hi ${esc(c.name)}</h1><p class="muted">Check-ins are due every Friday. It takes about two minutes.</p></div>
+  ${items.length?`<div class="card"><h2>This week's focus</h2><ul>${items.map(i=>`<li>${esc(i)}</li>`).join('')}</ul><p class="muted">Daily goals: ${num(c.stepGoal)} steps, ${esc(c.waterGoal)} oz of water</p></div>`:''}
+  ${targetsCard(c.targets)}
+  <form id="ci" class="card"><h2>Your week</h2>
+  ${err?`<div class="err" role="alert">${esc(err)}</div>`:''}
+  <label class="f" for="weekEnding">Week ending<select id="weekEnding"><option value="${f.last}"${v.weekEnding===f.last?' selected':''}>${fmt(f.last)}</option><option value="${f.next}"${v.weekEnding===f.next?' selected':''}>${fmt(f.next)}</option></select></label>
+  ${done?`<div class="note">You already checked in for this week. Sending again replaces it.</div>`:''}
+  ${c.trackWeight?`<label class="f" for="weight">Average morning weight this week (lb)<input id="weight" type="number" inputmode="decimal" step="0.1" min="50" max="600" value="${esc(v.weight)}"><small>Leave blank if you did not weigh in.</small></label>`:''}
+  ${sl('adherence','How closely did you follow the plan?','not at all','every meal')}
+  <label class="f" for="deviations">Where did you go off plan?<textarea id="deviations" maxlength="2000" placeholder="Meals out, missed meals, travel, anything that changed">${esc(v.deviations)}</textarea></label>
+  <label class="f" for="steps">Average daily steps<input id="steps" type="number" inputmode="numeric" step="100" min="0" max="100000" value="${esc(v.steps)}"></label>
+  <label class="f" for="water">Average daily water (oz)<input id="water" type="number" inputmode="numeric" step="1" min="0" max="500" value="${esc(v.water)}"></label>
+  ${sl('sleep','Sleep quality','poor','great')}${sl('energy','Energy','drained','full')}${sl('strength','Strength in training','weak','strong')}
+  <label class="f" for="notes">Anything else for Coach Logan?<textarea id="notes" maxlength="2000">${esc(v.notes)}</textarea></label>
+  <button class="btn" id="send" type="submit">Send check-in</button></form>`;
+  const el=id=>document.getElementById(id);
+  ['adherence','sleep','energy','strength'].forEach(k=>el(k).addEventListener('input',()=>{el('o-'+k).textContent=el(k).value}));
+  const read=()=>({weekEnding:el('weekEnding').value,weight:c.trackWeight?el('weight').value:'',adherence:el('adherence').value,deviations:el('deviations').value,steps:el('steps').value,water:el('water').value,sleep:el('sleep').value,energy:el('energy').value,strength:el('strength').value,notes:el('notes').value});
+  el('weekEnding').addEventListener('change',()=>form('',read()));
+  el('ci').addEventListener('submit',async e=>{e.preventDefault();const data=read();el('send').disabled=true;el('send').textContent='Sending';
+    try{await api({action:'checkin',id:ID,pin,data});done_(data)}catch(x){form(x.message,data);window.scrollTo(0,0)}});
+}
+function done_(data){
+  const week=data.weekEnding;client.done=(client.done||[]).concat(week);
+  app.innerHTML=`<div class="card"><h1>Check-in received</h1><p>Thanks, ${esc(client.name)}. Coach Logan has your check-in for the week ending ${fmt(week)}.</p><p class="muted">Need to change something? Send it again and the new one replaces it.</p><button class="btn" id="again" type="button">Edit my check-in</button></div>`;
+  document.getElementById('again').addEventListener('click',()=>form('',data));
+}
+if(!ID||!DEP)app.innerHTML=`<div class="card"><h1>Link not complete</h1><p>This check-in link is missing a piece. Ask Coach Logan to send it again.</p></div>`;
+else if(store.get())open(store.get());
+else pinScreen();
+</script>
+</body>
+</html>
