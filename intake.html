@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>KPC Nutrition Intake</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: one narrow column for a phone. Black brand bar, white cards, orange for the one action. */
+  --ink:#0e0e0e; --paper:#ffffff; --wash:#f5f3f1; --line:#e3ded9; --muted:#6b645e;
+  --accent:#f26a1b; --accent-wash:#fdeee4; --crit:#b3261e; --good:#1e7a46;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow","Segoe UI",system-ui,-apple-system,Arial,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--wash);color:var(--ink);font:400 16px/1.45 var(--body)}
+h1,h2{font-family:var(--display);text-transform:uppercase;letter-spacing:.03em;margin:0;text-wrap:balance}
+h1{font-size:28px} h2{font-size:20px}
+.top{background:var(--ink);color:#fff;padding:14px 16px;border-bottom:4px solid var(--accent)}
+.top b{font:700 22px/1 var(--display);text-transform:uppercase;letter-spacing:.04em;display:block}
+.top span{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+main{max-width:520px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px}
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:15px}
+label.f small{font-weight:400;color:var(--muted)}
+input,select,textarea,button{font:inherit;color:inherit}
+input[type=number],input[type=text],select,textarea{border:1px solid #bdb6af;border-radius:8px;padding:12px;background:#fff;width:100%;font-size:16px}
+textarea{min-height:84px;resize:vertical}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{border:0;background:var(--accent);color:#0e0e0e;border-radius:8px;padding:14px;font:700 19px var(--display);text-transform:uppercase;letter-spacing:.05em;cursor:pointer;width:100%}
+.btn[disabled]{opacity:.6;cursor:default}
+.slider{display:flex;gap:12px;align-items:center}
+.slider input{flex:1;height:32px;accent-color:var(--accent)}
+.slider output{font:600 22px var(--body);min-width:2ch;text-align:right}
+.ends{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-weight:400}
+.err{border-left:4px solid var(--crit);background:#fdecea;padding:10px 12px;border-radius:0 6px 6px 0}
+.note{border-left:4px solid var(--accent);background:var(--accent-wash);padding:10px 12px;border-radius:0 6px 6px 0}
+ul{margin:0;padding-left:20px}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+td.n,th.n{text-align:right}
+.muted{color:var(--muted);font-size:14px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.days{display:flex;gap:6px;flex-wrap:wrap}
+.days label{display:flex;flex-direction:column;align-items:center;gap:4px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-weight:600}
+.days input{width:20px;height:20px;accent-color:var(--accent)}
+input[type=date],input[type=email]{border:1px solid #bdb6af;border-radius:8px;padding:12px;background:#fff;width:100%;font-size:16px}
+.pin{letter-spacing:.5em;text-align:center;font-size:26px!important;font-weight:600}
+</style>
+</head>
+<body>
+<header class="top"><b>Kelly Performance Club</b><span>Built to Perform</span></header>
+<main id="app"></main>
+<script>
+"use strict";
+const qs=new URLSearchParams(location.search),ID=qs.get('c')||'',DEP=qs.get('s')||'';
+const API=`https://script.google.com/macros/s/${encodeURIComponent(DEP)}/exec`;
+const app=document.getElementById('app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const DAYS=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const store={get(){try{return localStorage.getItem('kpc_pin_'+ID)||''}catch(e){return''}},set(v){try{localStorage.setItem('kpc_pin_'+ID,v)}catch(e){}},clear(){try{localStorage.removeItem('kpc_pin_'+ID)}catch(e){}}};
+async function api(payload){
+  let r;try{r=await fetch(API,{method:'POST',body:JSON.stringify(payload)})}catch(e){throw new Error('Could not connect. Check your signal and try again.')}
+  let j;try{j=await r.json()}catch(e){throw new Error('The service did not answer. Try again in a minute.')}
+  if(!j.ok)throw new Error(j.error||'Something went wrong. Try again.');return j}
+let pin='',client=null;
+function pinScreen(err){
+  app.innerHTML=`<div class="card"><h1>Nutrition intake</h1><p class="muted">Enter the 4-digit PIN Coach Logan gave you.</p>
+  ${err?`<div class="err" role="alert">${esc(err)}</div>`:''}
+  <form id="pinForm"><label class="f" for="pin">PIN<input class="pin" id="pin" type="text" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]{4}" required></label>
+  <p></p><button class="btn" id="pinBtn" type="submit">Continue</button></form></div>`;
+  document.getElementById('pin').focus();
+  document.getElementById('pinForm').addEventListener('submit',e=>{e.preventDefault();open(document.getElementById('pin').value.trim())});
+}
+async function open(p){
+  app.innerHTML=`<div class="card"><p>Loading your form.</p></div>`;
+  try{const j=await api({action:'client',id:ID,pin:p});pin=p;client=j.client;store.set(p);form()}
+  catch(e){store.clear();pinScreen(e.message)}
+}
+const el=id=>document.getElementById(id);
+function read(){const ft=Number(el('ft').value)||0,inch=Number(el('in').value)||0;
+  const d={heightIn:ft||inch?String(ft*12+inch):'',trainDays:DAYS.map((x,i)=>el('day'+i).checked)};
+  ['dob','sex','weightLb','bfPct','sport','activity','avoid','prefs','mealsPref','typicalDay','cook','eatOut','supplements','challenge','why','parentName','parentEmail'].forEach(k=>{d[k]=el(k).value.trim()});
+  d._ft=el('ft').value;d._in=el('in').value;return d}
+function form(err,v){
+  v=v||{trainDays:[]};const g=k=>esc(v[k]||'');
+  const t=(k,label,o={})=>`<label class="f" for="${k}">${label}${o.area?`<textarea id="${k}" maxlength="2000" placeholder="${esc(o.ph||'')}">${g(k)}</textarea>`:`<input id="${k}" type="${o.type||'text'}" ${o.attrs||''} maxlength="200" placeholder="${esc(o.ph||'')}" value="${g(k)}">`}${o.hint?`<small>${o.hint}</small>`:''}</label>`;
+  const sel=(k,label,opts,hint)=>`<label class="f" for="${k}">${label}<select id="${k}">${opts.map(([a,b])=>`<option value="${esc(a)}"${String(v[k]||'')===String(a)?' selected':''}>${esc(b)}</option>`).join('')}</select>${hint?`<small>${hint}</small>`:''}</label>`;
+  app.innerHTML=`<div class="card"><h1>Hi ${esc(client.name)}</h1><p class="muted">This helps Coach Logan build your nutrition plan. It takes about five minutes. Skip anything you are not sure about.</p></div>
+  <form id="it" class="card">${err?`<div class="err" role="alert">${esc(err)}</div>`:''}
+  <h2>About you</h2>
+  ${t('dob','Date of birth',{type:'date',attrs:'required'})}
+  ${sel('sex','Sex',[['F','Female'],['M','Male']],'Used only in the equation that estimates your energy needs.')}
+  <div class="row2"><label class="f" for="ft">Height (ft)<input id="ft" type="number" inputmode="numeric" min="3" max="7" step="1" value="${g('_ft')}"></label><label class="f" for="in">Height (in)<input id="in" type="number" inputmode="decimal" min="0" max="11.5" step="0.5" value="${g('_in')}"></label></div>
+  ${t('weightLb','Current body weight (lb)',{type:'number',attrs:'inputmode="decimal" step="0.1" min="70" max="500" required',hint:'Used to set your fueling targets.'})}
+  ${t('bfPct','Body fat % (only if you have had it measured)',{type:'number',attrs:'inputmode="decimal" step="0.5" min="3" max="60"'})}
+  <h2>Training</h2>
+  ${t('sport','Sport or main activity',{ph:'Volleyball, lifting, running'})}
+  <div class="f" style="font-weight:600;font-size:15px">Which days do you usually train?<div class="days">${DAYS.map((d,i)=>`<label for="day${i}">${d}<input type="checkbox" id="day${i}"${v.trainDays[i]?' checked':''}></label>`).join('')}</div></div>
+  ${sel('activity','Outside of training, how active is your day?',[['','Pick one'],['Mostly sitting','Mostly sitting (desk, classes)'],['On my feet some of the day','On my feet some of the day'],['On my feet most of the day','On my feet most of the day'],['Physical job or very active','Physical job or very active']])}
+  <h2>Food</h2>
+  ${t('avoid','Foods you cannot or will not eat',{area:1,ph:'Allergies, intolerances, dislikes'})}
+  ${t('prefs','Foods and meals you like and eat often',{area:1})}
+  ${sel('mealsPref','How many times a day do you like to eat?',[['','Not sure'],['3','3'],['4','4'],['5','5'],['6','6']])}
+  ${t('typicalDay','Walk through a typical day of eating',{area:1,ph:'Breakfast, lunch, dinner, snacks, drinks'})}
+  ${t('cook','How much do you cook, and how much time do you have for it?',{area:1})}
+  ${t('eatOut','How often do you eat out or order in?',{ph:'Twice a week'})}
+  ${t('supplements','Supplements you take',{ph:'Protein powder, creatine, none'})}
+  <h2>Goals</h2>
+  ${t('challenge','What is your biggest challenge with nutrition right now?',{area:1})}
+  ${t('why','What do you want to get out of nutrition coaching?',{area:1})}
+  <h2>If you are under 18</h2>
+  ${t('parentName','Parent or guardian name')}
+  ${t('parentEmail','Parent or guardian email',{type:'email',hint:'They get a copy of your weekly check-ins.'})}
+  <button class="btn" id="send" type="submit">Send intake form</button></form>`;
+  el('it').addEventListener('submit',async e=>{e.preventDefault();const d=read();
+    const b=new Date(d.dob),t0=new Date();let age=t0.getFullYear()-b.getFullYear();if(t0<new Date(t0.getFullYear(),b.getMonth(),b.getDate()))age--;
+    if(age<18&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.parentEmail)){form('Add a parent or guardian email at the bottom of the form.',d);window.scrollTo(0,0);return}
+    el('send').disabled=true;el('send').textContent='Sending';
+    const data={...d};delete data._ft;delete data._in;
+    try{await api({action:'intake',id:ID,pin,data});done_(d)}catch(x){form(x.message,d);window.scrollTo(0,0)}});
+}
+function done_(d){
+  app.innerHTML=`<div class="card"><h1>Intake received</h1><p>Thanks, ${esc(client.name)}. Coach Logan has your answers and will build your plan from them.</p><p class="muted">Need to change something? Send the form again and the new answers replace the old ones.</p><button class="btn" id="again" type="button">Edit my answers</button></div>`;
+  el('again').addEventListener('click',()=>form('',d));
+}
+if(!ID||!DEP)app.innerHTML=`<div class="card"><h1>Link not complete</h1><p>This link is missing a piece. Ask Coach Logan to send it again.</p></div>`;
+else if(store.get())open(store.get());
+else pinScreen();
+</script>
+</body>
+</html>
